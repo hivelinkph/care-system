@@ -61,11 +61,6 @@ export default function ChatWidget() {
 
     // Toggle Chat
     const toggleChat = () => {
-        if (!process.env.NEXT_PUBLIC_GEMINI_API_KEY) {
-            setError("GEMINI_API_KEY is not defined in your environment variables. Please restart your server.");
-            setIsOpen(true);
-            return;
-        }
         if (!isOpen) {
             setIsOpen(true);
             connect();
@@ -75,19 +70,25 @@ export default function ChatWidget() {
         }
     };
 
-    // WebSocket Connection
-    const connect = () => {
+    // WebSocket Connection — key is fetched server-side to keep it out of the bundle
+    const connect = async () => {
         if (socketRef.current) return;
         setError(null);
         setStatus("Connecting...");
 
-        const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-        if (!key) {
-            setError("API Key missing! Restart your server.");
+        let url: string;
+        try {
+            const res = await fetch('/api/gemini-connect');
+            const json = await res.json();
+            if (!res.ok || json.error) {
+                setError(json.error || 'Failed to get connection URL.');
+                return;
+            }
+            url = json.url;
+        } catch {
+            setError('Could not reach server. Please try again.');
             return;
         }
-
-        const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.${apiVersion}.GenerativeService.BidiGenerateContent?key=${key}`;
         console.log("Connecting to:", url.split("?")[0] + "?key=REDACTED");
 
         const socket = new WebSocket(url);
